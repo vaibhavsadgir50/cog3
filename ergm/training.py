@@ -36,6 +36,10 @@ def train_step(
     """
     One optimization step on a batch (s_t, a_t, target_x_hat).
 
+    s_t / target_x_hat must come from a fresh forward each step if they share
+    modules trained jointly (e.g. ToolAdapter); reusing precomputed tensors across
+    backward() calls causes "backward through the graph a second time".
+
     Demonstrates the full cycle: zero_grad -> forward -> loss -> backward -> step.
     Returns detached scalar loss for logging.
     """
