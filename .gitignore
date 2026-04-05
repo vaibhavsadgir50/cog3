@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+.env
+.env.*
+.DS_Store
+.ipynb_checkpoints/
+
+# Generated data (produce locally with Ollama / upload to Colab)
+data/*.npz
+data/*.jsonl
+!data/.gitkeep
