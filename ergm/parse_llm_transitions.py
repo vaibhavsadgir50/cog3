@@ -5,10 +5,50 @@ Parse Gemma / LLM assistant text into ERGM transition dicts (s, a, s_next).
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import Any
 
 import numpy as np
+
+# JSON numbers only; LLMs often emit invalid "0.1 + 0.01" inside arrays.
+_NUM = r"-?(?:\d+\.\d+|\d+\.|\.\d+|\d+)(?:[eE][+-]?\d+)?"
+_BIN_OP = re.compile(rf"({_NUM})\s*([+\-*/])\s*({_NUM})")
+
+
+def _fold_binary_float_exprs(s: str) -> str:
+    """Turn invalid JSON like [0.1 + 0.01, 2 * 3] into numeric literals, left-to-right."""
+
+    def _fmt(v: float) -> str:
+        if math.isnan(v) or math.isinf(v):
+            return "0.0"
+        if v == int(v) and abs(v) < 1e15:
+            return str(int(v))
+        t = format(v, ".12g")
+        if "e" in t.lower() or "E" in t:
+            return t
+        return t.rstrip("0").rstrip(".") or "0"
+
+    def _apply(m: re.Match[str]) -> str:
+        a, op, b = float(m.group(1)), m.group(2), float(m.group(3))
+        if op == "+":
+            v = a + b
+        elif op == "-":
+            v = a - b
+        elif op == "*":
+            v = a * b
+        else:
+            v = a / b if b != 0 else 0.0
+        return _fmt(v)
+
+    prev = None
+    while prev != s:
+        prev = s
+        m = _BIN_OP.search(s)
+        if not m:
+            break
+        s = s[: m.start()] + _apply(m) + s[m.end() :]
+    return s
 
 
 def _strip_markdown_fences(text: str) -> str:
@@ -37,6 +77,11 @@ def _as_float_vec(vec: Any, raw_dim: int, item_i: int, key: str) -> list[float]:
     for j, x in enumerate(vec):
         if isinstance(x, (int, float)) and not isinstance(x, bool):
             out.append(float(x))
+        elif isinstance(x, str):
+            try:
+                out.append(float(x))
+            except ValueError as e:
+                raise ValueError(f"Item {item_i}[{key}][{j}] must be a number") from e
         else:
             raise ValueError(f"Item {item_i}[{key}][{j}] must be a number")
     return out
@@ -48,6 +93,7 @@ def parse_transition_array(content: str, raw_dim: int = 8) -> list[dict[str, lis
     Raises ValueError if structure is invalid.
     """
     blob = _extract_json_array(content)
+    blob = _fold_binary_float_exprs(blob)
     data = json.loads(blob)
     if not isinstance(data, list):
         raise ValueError("Top-level JSON must be an array of transitions")

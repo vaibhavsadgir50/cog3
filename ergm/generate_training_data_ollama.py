@@ -61,6 +61,9 @@ Each element must be an object with exactly three keys:
 - "a": array of exactly {raw_dim} floating-point numbers (action / control)
 - "s_next": array of exactly {raw_dim} floating-point numbers (state after step)
 
+CRITICAL: Every array entry must be a single numeric JSON literal (e.g. 0.11, -0.5, 2.0).
+Never use expressions inside JSON: forbidden examples are 0.1+0.01, 1.0 + 0.2, 2*0.1 — compute the value yourself and write only the final number.
+
 Interpret s as stacked physical channels (e.g. positions and velocities in arbitrary units).
 s_next should be a plausible consequence of applying action a to state s for one discrete step
 (smooth, bounded changes; no NaN or Infinity).
